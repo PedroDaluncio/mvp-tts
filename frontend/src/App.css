@@ -1,0 +1,75 @@
+.editor {
+  width: min(44rem, calc(100% - 2.5rem));
+  margin: clamp(3rem, 14vh, 9rem) auto;
+}
+
+.editor h1 {
+  margin: 0 0 1.5rem;
+  font: 500 clamp(2rem, 6vw, 3.25rem)/1.1 Georgia, serif;
+  letter-spacing: -0.035em;
+}
+
+.editor textarea,
+.editor select {
+  display: block;
+  border: 1px solid #a2afa5;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: inherit;
+  font-family: inherit;
+  font-size: 1.125rem;
+  line-height: 1.65;
+}
+
+.editor textarea {
+  width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.select-label {
+  display: block;
+  margin: 1.5rem 0 0.5rem;
+  font-weight: 600;
+}
+
+.editor select {
+  width: min(100%, 16rem);
+  padding: 0.65rem 0.85rem;
+}
+
+.editor textarea::placeholder {
+  color: #626e66;
+}
+
+.editor textarea:focus-visible,
+.editor select:focus-visible,
+.editor button:focus-visible {
+  outline: 2px solid #357354;
+  outline-offset: 3px;
+}
+
+.editor button {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: #285b42;
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor button:disabled {
+  background: #dbe1dc;
+  color: #49564e;
+  cursor: default;
+}
+
+.editor audio {
+  display: block;
+  margin-top: 1.5rem;
+  width: 100%;
+}
