@@ -15,7 +15,7 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8080
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends espeak-ng libsndfile1 libgomp1 \
+    && apt-get install -y --no-install-recommends ffmpeg espeak-ng libsndfile1 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /tmp/requirements.txt
@@ -27,7 +27,12 @@ RUN grep '^torch==' /tmp/requirements.txt > /tmp/torch.txt \
 
 # Bundle only the files needed for Brazilian Portuguese before instances start.
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('hexgrad/Kokoro-82M', allow_patterns=['config.json', 'kokoro-v1_0.pth', 'voices/pf_dora.pt', 'voices/pm_alex.pt', 'voices/pm_santa.pt'])"
-ENV HF_HUB_OFFLINE=1
+# Chatterbox needs its own Python 3.10 / CPU Torch environment.
+COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /usr/local/bin/uv
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_CACHE_DIR=/opt/uv-cache
+COPY backend/chatterbox_worker.py ./backend/chatterbox_worker.py
+RUN uv run --python 3.10 --script backend/chatterbox_worker.py </dev/null
+ENV HF_HUB_OFFLINE=1 UV_OFFLINE=1
 
 COPY backend/ ./backend/
 COPY --from=frontend /build/frontend/dist/ ./frontend/dist/

@@ -73,3 +73,27 @@
   margin-top: 1.5rem;
   width: 100%;
 }
+
+.reference-drop {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 2px dashed #829889;
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+.reference-drop:hover,
+.reference-drop:focus-within {
+  border-color: #357354;
+  background: #eff5f0;
+}
+
+.reference-drop input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+}

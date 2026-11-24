@@ -75,6 +75,7 @@ pydantic==2.14.4
 pydantic-core==2.50.5
 pygments==2.21.0
 pyparsing==3.3.3
+python-multipart==0.0.34
 python-dateutil==4.0.0
 pyyaml==6.0.4
 rdflib==7.6.0

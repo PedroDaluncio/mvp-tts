@@ -1,12 +1,18 @@
+import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from shutil import copyfileobj
 from queue import Empty, LifoQueue
 from typing import Annotated, Literal
 
-from anyio import from_thread, to_thread
-from fastapi import FastAPI, HTTPException, Request, Response
+from anyio import from_thread, run_process, to_thread
+import soundfile as sf
+from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from kokoro import KPipeline
 from pydantic import BaseModel, StringConstraints
 
+from .chatterbox_pt_br import ChatterboxWorker
 from .kokoro_pt_br import Voice, config, create_pipeline, synthesize
 
 
@@ -20,9 +26,11 @@ async def lifespan(app: FastAPI):
     for _ in range(concurrency):
         pipelines.put_nowait(await to_thread.run_sync(create_pipeline))
     app.state.pipelines = pipelines
+    app.state.chatterbox = ChatterboxWorker()
     try:
         yield
     finally:
+        await app.state.chatterbox.close()
         del app.state.pipelines
 
 
@@ -35,12 +43,17 @@ class SpeechRequest(BaseModel):
     provider: Literal["kokoro"] = "kokoro"
 
 
+class ChatterboxRequest(BaseModel):
+    provider: Literal["chatterbox"]
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    voice: Literal["default"] = "default"
+
+
 class WavResponse(Response):
     media_type = "audio/wav"
 
 
-@app.post("/speech", response_class=WavResponse)
-def generate_speech(payload: SpeechRequest, request: Request) -> WavResponse:
+def generate_kokoro(payload: SpeechRequest, request: Request) -> WavResponse:
     def check_connection() -> None:
         if from_thread.run(request.is_disconnected):
             raise HTTPException(status_code=499, detail="Client disconnected")
@@ -62,3 +75,57 @@ def generate_speech(payload: SpeechRequest, request: Request) -> WavResponse:
     finally:
         pipelines.put_nowait(pipeline)
     return WavResponse(audio)
+
+async def wait_for_disconnect(request: Request):
+    while (await request.receive())["type"] != "http.disconnect":
+        pass
+
+
+@app.post("/speech", response_class=WavResponse)
+async def generate_speech(payload: SpeechRequest | ChatterboxRequest, request: Request) -> WavResponse:
+    if isinstance(payload, SpeechRequest):
+        return await to_thread.run_sync(generate_kokoro, payload, request)
+
+    return await chatterbox_response(request, request.app.state.chatterbox.synthesize(payload.text))
+
+
+@app.post("/speech/chatterbox/custom", response_class=WavResponse)
+async def custom_speech(request: Request, text: Annotated[str, Form()], reference_audio: UploadFile) -> WavResponse:
+    text = text.strip()
+    if not text:
+        raise HTTPException(422, "Please provide some text to read aloud.")
+
+    async def convert():
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "upload"
+            prompt = Path(directory) / "reference.wav"
+            with source.open("wb") as dest:
+                await to_thread.run_sync(copyfileobj, reference_audio.file, dest)
+            result = await run_process([
+                "ffmpeg", "-nostdin", "-v", "error", "-protocol_whitelist", "file",
+                "-format_whitelist", "wav,mp3,mov,ogg,flac,aac,matroska,webm,aiff,asf,amr",
+                "-i", str(source), "-map", "0:a:0", "-t", "10", "-ac", "1", "-ar", "24000",
+                "-c:a", "pcm_s16le", str(prompt),
+            ], check=False)
+            if result.returncode or sf.info(prompt).frames < 24000:
+                raise HTTPException(422, "Provide a readable recording of at least one second.")
+            return await request.app.state.chatterbox.synthesize(text, prompt)
+
+    return await chatterbox_response(request, convert())
+
+
+async def chatterbox_response(request: Request, conversion) -> WavResponse:
+    synthesis = asyncio.create_task(conversion)
+    disconnect = asyncio.create_task(wait_for_disconnect(request))
+    try:
+        done, _ = await asyncio.wait((synthesis, disconnect), return_when=asyncio.FIRST_COMPLETED)
+        if disconnect in done:
+            await disconnect
+            raise HTTPException(status_code=499, detail="Client disconnected")
+        return WavResponse(await synthesis)
+    except (OSError, asyncio.IncompleteReadError) as exc:
+        raise HTTPException(status_code=503, detail="Chatterbox worker unavailable") from exc
+    finally:
+        disconnect.cancel()
+        synthesis.cancel()
+        await asyncio.gather(disconnect, synthesis, return_exceptions=True)
