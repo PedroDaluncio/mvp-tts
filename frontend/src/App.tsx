@@ -2,24 +2,15 @@ import axios from 'axios'
 import { useEffect, useRef, useState, type SubmitEvent } from 'react'
 import './App.css'
 
-const voicesByProvider = {
-  kokoro: [
-    { id: 'pf_dora', name: 'Dora' },
-    { id: 'pm_alex', name: 'Alex' },
-    { id: 'pm_santa', name: 'Santa' },
-  ],
-  edge: [
-    { id: 'pt-BR-FranciscaNeural', name: 'Francisca' },
-    { id: 'pt-BR-AntonioNeural', name: 'Antônio' },
-  ],
-}
-
-type Provider = keyof typeof voicesByProvider
+const voices = [
+  { id: 'pf_dora', name: 'Dora' },
+  { id: 'pm_alex', name: 'Alex' },
+  { id: 'pm_santa', name: 'Santa' },
+]
 
 function App() {
   const [text, setText] = useState('')
-  const [provider, setProvider] = useState<Provider>('kokoro')
-  const [voice, setVoice] = useState(voicesByProvider.kokoro[0].id)
+  const [voice, setVoice] = useState(voices[0].id)
   const [isConverting, setIsConverting] = useState(false)
   const [audioUrl, setAudioUrl] = useState('')
   const [error, setError] = useState('')
@@ -53,7 +44,7 @@ function App() {
     try {
       const { data } = await axios.post<Blob>(
         '/speech',
-        { text: text.trim(), provider, voice },
+        { text: text.trim(), voice },
         { baseURL: import.meta.env.VITE_API_BASE_URL, responseType: 'blob', signal: controller.signal },
       )
       if (data.type !== 'audio/wav' || !data.size) {
@@ -83,21 +74,6 @@ function App() {
           value={text}
           onChange={(event) => setText(event.target.value)}
         />
-        <label className="select-label" htmlFor="speech-provider">Modelo</label>
-        <select
-          id="speech-provider"
-          name="provider"
-          value={provider}
-          disabled={isConverting}
-          onChange={(event) => {
-            const nextProvider = event.target.value as Provider
-            setProvider(nextProvider)
-            setVoice(voicesByProvider[nextProvider][0].id)
-          }}
-        >
-          <option value="kokoro">Kokoro (local)</option>
-          <option value="edge">Microsoft Edge TTS (online)</option>
-        </select>
         <label className="select-label" htmlFor="speech-voice">Voz</label>
         <select
           id="speech-voice"
@@ -108,7 +84,7 @@ function App() {
           onChange={(event) => setVoice(event.target.value)}
         >
           <option value="">Selecione uma voz</option>
-          {voicesByProvider[provider].map(({ id, name }) => (
+          {voices.map(({ id, name }) => (
             <option key={id} value={id}>{name}</option>
           ))}
         </select>

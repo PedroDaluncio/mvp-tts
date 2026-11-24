@@ -15,7 +15,7 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8080
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg espeak-ng libsndfile1 libgomp1 \
+    && apt-get install -y --no-install-recommends espeak-ng libsndfile1 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /tmp/requirements.txt
